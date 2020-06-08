@@ -3,19 +3,22 @@
 # Very simple jitsi top displaying some statistics from the jvb
 #
 
-import requests, time, datetime
+import requests, time, datetime, tzlocal
 
 resp = requests.get('http://127.0.0.1:8080/about/version')
 version = resp.json()
+localtz = tzlocal.get_localzone()
 
 while 1:
-   print("\033[H\033[J%s %s on %s" % (version['name'], version['version'], version['os']))
-   print()
    resp = requests.get('http://127.0.0.1:8080/colibri/stats')
    if resp.status_code != 200:
        # This means something went wrong.
        raise ApiError('GET /colibri/stats/ {}'.format(resp.status_code))
    data = resp.json()
+   updatestamp=datetime.datetime.strptime(data['current_timestamp'] + " +0000", '%Y-%m-%d %H:%M:%S.%f %z').astimezone(localtz)
+
+   print("\033[H\033[J%s %s on %s  Update: %s" % (version['name'], version['version'], version['os'], "{:%Y/%m/%d %H:%M:%S}".format(updatestamp)))
+   print()
 
    print("Current conference information")
    print("  Active          :% 3d" % data['conferences'])
@@ -27,9 +30,9 @@ while 1:
    print("  Inactive clients:% 3d" % data['inactive_endpoints'])
 
    print("Network statistics")
-   print("  Download: % 5d Kbps" % data['bit_rate_download'])
-   print("  Upload  : % 5d Kbps" % data['bit_rate_upload'])
-   print("  Avg RTT : % 5d ms" % data['rtt_aggregate'])
+   print("  Download (loss): % 5d Kbps (%d)" % (data['bit_rate_download'], data['loss_rate_download']))
+   print("  Upload   (loss): % 5d Kbps (%d)" % (data['bit_rate_upload'], data['loss_rate_upload']))
+   print("  Avg RTT        : % 5d ms" % data['rtt_aggregate'])
 
    print("ICE")
    print("  Succeed (relayed): % 3d (% 3d)" % (data['total_ice_succeeded'], data['total_ice_succeeded_relayed']))
@@ -43,4 +46,4 @@ while 1:
    print("    Time            : %s" % datetime.timedelta(seconds=data['total_conference_seconds']))
    print("    Speaker changes : %s" % data['total_dominant_speaker_changes'])
 
-   time.sleep(1)
+   time.sleep(5)
