@@ -48,10 +48,10 @@ def main(screen):
          raise ApiError('GET /colibri/stats/ {}'.format(resp.status_code))
       data = resp.json()
       resp = requests.get('http://localhost:5280/status?domain=meeting.kramsolutions.nl')
-      if resp.status_code != 200:
-         # This means something went wrong.
-         raise ApiError('GET /status {}'.format(resp.status_code))
-      rooms = resp.json()
+      #if resp.status_code != 200:
+      #   # This means something went wrong.
+      #   raise ApiError('GET /status {}'.format(resp.status_code))
+      #rooms = resp.json()
    
       updatestamp = datetime.datetime.strptime(data['current_timestamp'] + " +0000", '%Y-%m-%d %H:%M:%S.%f %z').astimezone(localtz)
    
@@ -60,17 +60,17 @@ def main(screen):
       title.addstr(0, maxx - len(line) - 1, line)
       title.refresh()
 
-      if len(rooms) > 0:
-         for r in rooms[0][0]:
-            print(r['roomjid'])
-            print(r['roomname'])
-            print(r['NBparticipant'])
-            for p in r['participant']:
-               print(p['role'])
-               print(p['display_name'])
-               print(p['videomuted'])
-               print(p['audiomuted'])
-               print(p['jid'])
+      #if len(rooms) > 0:
+      #   for r in rooms[0][0]:
+      #      print(r['roomjid'])
+      #      print(r['roomname'])
+      #      print(r['NBparticipant'])
+      #      for p in r['participant']:
+      #         print(p['role'])
+      #         print(p['display_name'])
+      #         print(p['videomuted'])
+      #         print(p['audiomuted'])
+      #         print(p['jid'])
 
       confstats.addstr(1, 1, "Active          :% 3d" % data['conferences'])
       confstats.addstr(2, 1, "Inactive        :% 3d" % data['inactive_conferences'])
