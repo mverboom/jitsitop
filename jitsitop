@@ -3,47 +3,117 @@
 # Very simple jitsi top displaying some statistics from the jvb
 #
 
-import requests, time, datetime, tzlocal
+import requests, time, datetime, tzlocal, pprint, curses, socket, cursesmenu
 
-resp = requests.get('http://127.0.0.1:8080/about/version')
-version = resp.json()
-localtz = tzlocal.get_localzone()
+def main(screen):
+   resp = requests.get('http://127.0.0.1:8080/about/version')
+   version = resp.json()
+   
+   # Initialise curses
+   curses.noecho() # no key echo
+   curses.cbreak() # unbuffered keys
+   curses.curs_set(0) # hide cursor
 
-while 1:
-   resp = requests.get('http://127.0.0.1:8080/colibri/stats')
-   if resp.status_code != 200:
-       # This means something went wrong.
-       raise ApiError('GET /colibri/stats/ {}'.format(resp.status_code))
-   data = resp.json()
-   updatestamp=datetime.datetime.strptime(data['current_timestamp'] + " +0000", '%Y-%m-%d %H:%M:%S.%f %z').astimezone(localtz)
+   # Initialise windows
+   maxy, maxx = screen.getmaxyx()
 
-   print("\033[H\033[J%s %s on %s  Update: %s" % (version['name'], version['version'], version['os'], "{:%Y/%m/%d %H:%M:%S}".format(updatestamp)))
-   print()
+   title = curses.newwin(1, maxx, 0, 0)
 
-   print("Current conference information")
-   print("  Active          :% 3d" % data['conferences'])
-   print("  Inactive        :% 3d" % data['inactive_conferences'])
-   print("  Peer 2 peer     :% 3d" % data['p2p_conferences'])
-   print("  Participants    :% 3d" % data['participants'])
-   print("  Videostreams    :% 3d" % data['endpoints_sending_video'])
-   print("  Audiostreams    :% 3d" % data['endpoints_sending_audio'])
-   print("  Inactive clients:% 3d" % data['inactive_endpoints'])
+   confstats = curses.newwin(11, 30, 2, 0)
+   confstats.border()
+   confstats.addstr(0, 3, "Current conferences")
 
-   print("Network statistics")
-   print("  Download (loss): % 5d Kbps (%d)" % (data['bit_rate_download'], data['loss_rate_download']))
-   print("  Upload   (loss): % 5d Kbps (%d)" % (data['bit_rate_upload'], data['loss_rate_upload']))
-   print("  Avg RTT        : % 5d ms" % data['rtt_aggregate'])
+   netstats = curses.newwin(7, 30, 13, 0)
+   netstats.border()
+   netstats.addstr(0, 3, "Network")
 
-   print("ICE")
-   print("  Succeed (relayed): % 3d (% 3d)" % (data['total_ice_succeeded'], data['total_ice_succeeded_relayed']))
-   print("  Failed           : % 3d" % data['total_ice_failed'])
+   icestats = curses.newwin(5, 35, 2, 40)
+   icestats.border()
+   icestats.addstr(0, 3, "ICE")
 
-   print("Totals since server start")
-   print("  Conferences       : % 3d" % data['total_conferences_created'])
-   print("    Failed          : % 3d" % data['total_failed_conferences'])
-   print("    Partially failed: % 3d" % data['total_partially_failed_conferences'])
-   print("    Completed       : % 3d" % data['total_conferences_completed'])
-   print("    Time            : %s" % datetime.timedelta(seconds=data['total_conference_seconds']))
-   print("    Speaker changes : %s" % data['total_dominant_speaker_changes'])
+   totalstats = curses.newwin(8, 32, 20, 0)
+   totalstats.border()
+   totalstats.addstr(0, 3, "Totals")
+   
+   localtz = tzlocal.get_localzone()
+   hostname = socket.getfqdn()
 
-   time.sleep(5)
+
+   stop=0
+   
+   while not stop:
+      resp = requests.get('http://127.0.0.1:8080/colibri/stats')
+      if resp.status_code != 200:
+         # This means something went wrong.
+         raise ApiError('GET /colibri/stats/ {}'.format(resp.status_code))
+      data = resp.json()
+      resp = requests.get('http://localhost:5280/status?domain=meeting.kramsolutions.nl')
+      if resp.status_code != 200:
+         # This means something went wrong.
+         raise ApiError('GET /status {}'.format(resp.status_code))
+      rooms = resp.json()
+   
+      updatestamp = datetime.datetime.strptime(data['current_timestamp'] + " +0000", '%Y-%m-%d %H:%M:%S.%f %z').astimezone(localtz)
+   
+      title.addstr(0, 0, "%s (%s)" % (hostname, data['version']))
+      line="Update: %s" % "{:%Y/%m/%d %H:%M:%S}".format(updatestamp)
+      title.addstr(0, maxx - len(line) - 1, line)
+      title.refresh()
+
+      if len(rooms) > 0:
+         for r in rooms[0][0]:
+            print(r['roomjid'])
+            print(r['roomname'])
+            print(r['NBparticipant'])
+            for p in r['participant']:
+               print(p['role'])
+               print(p['display_name'])
+               print(p['videomuted'])
+               print(p['audiomuted'])
+               print(p['jid'])
+
+      confstats.addstr(1, 1, "Active          :% 3d" % data['conferences'])
+      confstats.addstr(2, 1, "Inactive        :% 3d" % data['inactive_conferences'])
+      confstats.addstr(3, 1, "Largests        :% 3d" % data['largest_conference'])
+      confstats.addstr(4, 1, "Peer 2 peer     :% 3d" % data['p2p_conferences'])
+      confstats.addstr(5, 1, "Participants    :% 3d" % data['participants'])
+      confstats.addstr(6, 1, "Videostreams    :% 3d" % data['endpoints_sending_video'])
+      confstats.addstr(7, 1, "Audiostreams    :% 3d" % data['endpoints_sending_audio'])
+      confstats.addstr(8, 1, "Inactive clients:% 3d" % data['inactive_endpoints'])
+      confstats.refresh()
+   
+      netstats.addstr(1, 1, "Download     : % 6.2fMbps" % (data['bit_rate_download']/1024))
+      netstats.addstr(2, 1, "Download loss: % 6.2f%%" % (data['loss_rate_download']*100))
+      netstats.addstr(3, 1, "Upload       : % 6.2fMbps" % (data['bit_rate_upload']/1024))
+      netstats.addstr(4, 1, "Upload loss  : % 6.2f%%" % (data['loss_rate_upload']*100))
+      netstats.addstr(5, 1, "Avg RTT      : % 6dms" % data['rtt_aggregate'])
+      netstats.refresh()
+
+      icestats.addstr(1, 1, "Succeed          : % 3d" % data['total_ice_succeeded'])
+      icestats.addstr(2, 1, "Relayed          : % 3d" % data['total_ice_succeeded_relayed'])
+      icestats.addstr(3,1, "Failed           : % 3d" % data['total_ice_failed'])
+      icestats.refresh()
+
+      totalstats.addstr(1, 1, "Conferences     : % 3d" % data['total_conferences_created'])
+      totalstats.addstr(2, 1, "Failed          : % 3d" % data['total_failed_conferences'])
+      totalstats.addstr(3, 1, "Partially failed: % 3d" % data['total_partially_failed_conferences'])
+      totalstats.addstr(4, 1, "Completed       : % 3d" % data['total_conferences_completed'])
+      tcf=int(data['total_conference_seconds'])
+      days=tcf // 86400
+      tcf-=days * 86400
+      hrs=tcf // 3600 
+      tcf-=hrs * 3600
+      min=tcf // 60
+      sec=tcf - min * 60
+      totalstats.addstr(5, 1, "Time            : % 2dd %02d:%02d:%02d" % (days, hrs, min, sec))
+      totalstats.addstr(6, 1, "Speaker changes : %s" % data['total_dominant_speaker_changes'])
+      totalstats.refresh()
+      totalstats.timeout(5000)
+      key = totalstats.getch()
+      if key == ord("q"):
+         stop = 1
+      elif key == curses.KEY_RESIZE: # window resized
+         screen.erase()
+      #time.sleep(5)
+
+curses.wrapper(main)

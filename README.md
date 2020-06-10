@@ -5,4 +5,4 @@ to display some live statistics on the commandline.
 
 Required packages:
 
-``apt install python3 python3-requests``
+``apt install python3 python3-requests python3-tzlocal``
