@@ -3,7 +3,7 @@
 # Very simple jitsi top displaying some statistics from the jvb
 #
 
-import requests, time, datetime, tzlocal, pprint, curses, socket, cursesmenu
+import requests, time, datetime, tzlocal, pprint, curses, socket
 
 def main(screen):
    resp = requests.get('http://127.0.0.1:8080/about/version')
