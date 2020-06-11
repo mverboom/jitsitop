@@ -4,6 +4,7 @@
 #
 
 import requests, time, datetime, tzlocal, pprint, curses, socket, curses.panel
+import psutil
 
 class titlebar:
    def __init__(self, screen):
@@ -96,6 +97,7 @@ def main(screen):
    icestats = window(screen, "ICE", 30, 2)
    totalstats = window(screen, "Totals", 0, 20)
    confsize = window(screen, "Conference sizes", 50, 2)
+   serverinfo = window(screen, "Server", 30,8)
 
    localtz = tzlocal.get_localzone()
    hostname = socket.getfqdn()
@@ -170,14 +172,19 @@ def main(screen):
       totalstats.item("Speaker changes", "%s" % data['total_dominant_speaker_changes'])
       totalstats.refresh()
 
-      count = 1
+      count = 0
       confs = data['conferences']
       if confs == 0:
          confs = 1
       for size in data['conference_sizes']:
-         confsize.item(str(count), "%10s %3.1f%%" % (int(size/confs) * "=", (size/confs*10)))
+         if count > 1:
+            confsize.item("% 2s" % str(count), "%10s %3.0f%% % 2d" % (int(size/confs*10)*"=", (size/confs*100), size))
          count += 1
       confsize.refresh()
+
+      serverinfo.item("CPU", "% 5.1f%%" % psutil.cpu_percent())
+      serverinfo.item("Threads", str(data['threads']))
+      serverinfo.refresh()
 
       key = screen.getch()
       if key == ord("q"):
