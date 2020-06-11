@@ -3,7 +3,78 @@
 # Very simple jitsi top displaying some statistics from the jvb
 #
 
-import requests, time, datetime, tzlocal, pprint, curses, socket
+import requests, time, datetime, tzlocal, pprint, curses, socket, curses.panel
+
+class titlebar:
+   def __init__(self, screen):
+      self.screen = screen
+
+      maxy, maxx = self.screen.getmaxyx()
+      self.window = curses.newwin(1, maxx + 1, 0, 0)
+      self.panel = curses.panel.new_panel(self.window)
+
+   def left(self, text):
+      self.window.addstr(0, 0, text)
+
+   def right(self, text):
+      maxy, maxx = self.window.getmaxyx()
+      self.window.addstr(0, maxx - 1 - len(text), text)
+
+   def refresh(self):
+      self.window.refresh()
+
+class window:
+   def __init__(self, screen, title, x, y):
+      self.screen = screen
+      self.title = title
+      self.items = {}
+
+      width = 0
+      height = 0
+      if self.title != "":
+         width = len(self.title) + 5
+         height = 2
+      self.window = curses.newwin(height, width, y, x)
+      self.panel = curses.panel.new_panel(self.window)
+      if self.title != "":
+         self.window.border()
+         self.window.addstr(0, 3, self.title)
+
+   def item(self, item, value):
+      maxy, maxx = self.window.getmaxyx()
+
+      self.items[item] = value
+      y = maxy
+      if (len(self.items) + 2) > maxy:
+         y = len(self.items) + 2
+
+      kmax=0
+      vmax=0
+      for key,val in self.items.items():
+         if len(key) > kmax:
+            kmax = len(key)
+         if len(val) > vmax:
+            vmax = len(val)
+      x = kmax + vmax + 3
+      if x < maxx:
+         x = maxx
+
+      if (x > maxx) or (y > maxy):
+         self.window.resize(y, x)
+         self.window.erase()
+         self.window.border()
+         self.window.addstr(0, 3, self.title)
+         maxx = x
+         maxy = y
+
+      y = 1
+      for key,val in self.items.items():
+         self.window.addstr(y, 1, key)
+         self.window.addstr(y, maxx - len(val) - 1, val)
+         y += 1
+
+   def refresh(self):
+      self.window.refresh()
 
 def main(screen):
    resp = requests.get('http://127.0.0.1:8080/about/version')
@@ -13,34 +84,25 @@ def main(screen):
    curses.noecho() # no key echo
    curses.cbreak() # unbuffered keys
    curses.curs_set(0) # hide cursor
+   screen.timeout(5000)
 
    # Initialise windows
    maxy, maxx = screen.getmaxyx()
 
-   title = curses.newwin(1, maxx, 0, 0)
+   title = titlebar(screen)
 
-   confstats = curses.newwin(11, 30, 2, 0)
-   confstats.border()
-   confstats.addstr(0, 3, "Current conferences")
+   confstats = window(screen, "Current conferences", 0, 2)
+   netstats = window(screen, "Network", 0, 13)
+   icestats = window(screen, "ICE", 30, 2)
+   totalstats = window(screen, "Totals", 0, 20)
+   confsize = window(screen, "Conference sizes", 50, 2)
 
-   netstats = curses.newwin(7, 30, 13, 0)
-   netstats.border()
-   netstats.addstr(0, 3, "Network")
-
-   icestats = curses.newwin(5, 35, 2, 40)
-   icestats.border()
-   icestats.addstr(0, 3, "ICE")
-
-   totalstats = curses.newwin(8, 32, 20, 0)
-   totalstats.border()
-   totalstats.addstr(0, 3, "Totals")
-   
    localtz = tzlocal.get_localzone()
    hostname = socket.getfqdn()
 
-
    stop=0
    
+   screen.refresh()
    while not stop:
       resp = requests.get('http://127.0.0.1:8080/colibri/stats')
       if resp.status_code != 200:
@@ -55,9 +117,8 @@ def main(screen):
    
       updatestamp = datetime.datetime.strptime(data['current_timestamp'] + " +0000", '%Y-%m-%d %H:%M:%S.%f %z').astimezone(localtz)
    
-      title.addstr(0, 0, "%s (%s)" % (hostname, data['version']))
-      line="Update: %s" % "{:%Y/%m/%d %H:%M:%S}".format(updatestamp)
-      title.addstr(0, maxx - len(line) - 1, line)
+      title.left("%s (%s)" % (hostname, data['version']))
+      title.right("Update: %s" % "{:%Y/%m/%d %H:%M:%S}".format(updatestamp))
       title.refresh()
 
       #if len(rooms) > 0:
@@ -72,32 +133,32 @@ def main(screen):
       #         print(p['audiomuted'])
       #         print(p['jid'])
 
-      confstats.addstr(1, 1, "Active          :% 3d" % data['conferences'])
-      confstats.addstr(2, 1, "Inactive        :% 3d" % data['inactive_conferences'])
-      confstats.addstr(3, 1, "Largests        :% 3d" % data['largest_conference'])
-      confstats.addstr(4, 1, "Peer 2 peer     :% 3d" % data['p2p_conferences'])
-      confstats.addstr(5, 1, "Participants    :% 3d" % data['participants'])
-      confstats.addstr(6, 1, "Videostreams    :% 3d" % data['endpoints_sending_video'])
-      confstats.addstr(7, 1, "Audiostreams    :% 3d" % data['endpoints_sending_audio'])
-      confstats.addstr(8, 1, "Inactive clients:% 3d" % data['inactive_endpoints'])
+      confstats.item("Active", "% 3d" % data['conferences'])
+      confstats.item("Inactive", "% 3d" % data['inactive_conferences'])
+      confstats.item("Largests", "% 3d" % data['largest_conference'])
+      confstats.item("Peer 2 peer", "% 3d" % data['p2p_conferences'])
+      confstats.item("Participants","% 3d" % data['participants'])
+      confstats.item("Videostreams", "% 3d" % data['endpoints_sending_video'])
+      confstats.item("Audiostreams", "% 3d" % data['endpoints_sending_audio'])
+      confstats.item("Inactive clients", "% 3d" % data['inactive_endpoints'])
       confstats.refresh()
    
-      netstats.addstr(1, 1, "Download     : % 6.2fMbps" % (data['bit_rate_download']/1024))
-      netstats.addstr(2, 1, "Download loss: % 6.2f%%" % (data['loss_rate_download']*100))
-      netstats.addstr(3, 1, "Upload       : % 6.2fMbps" % (data['bit_rate_upload']/1024))
-      netstats.addstr(4, 1, "Upload loss  : % 6.2f%%" % (data['loss_rate_upload']*100))
-      netstats.addstr(5, 1, "Avg RTT      : % 6dms" % data['rtt_aggregate'])
+      netstats.item("Download", "% 6.2fMbps" % (data['bit_rate_download']/1024))
+      netstats.item("Download loss", "% 6.2f%%" % (data['loss_rate_download']*100))
+      netstats.item("Upload", "% 6.2fMbps" % (data['bit_rate_upload']/1024))
+      netstats.item("Upload loss", "% 6.2f%%" % (data['loss_rate_upload']*100))
+      netstats.item("Avg RTT", "% 6dms" % data['rtt_aggregate'])
       netstats.refresh()
 
-      icestats.addstr(1, 1, "Succeed          : % 3d" % data['total_ice_succeeded'])
-      icestats.addstr(2, 1, "Relayed          : % 3d" % data['total_ice_succeeded_relayed'])
-      icestats.addstr(3,1, "Failed           : % 3d" % data['total_ice_failed'])
+      icestats.item("Succeed", "% 3d" % data['total_ice_succeeded'])
+      icestats.item("Relayed", "% 3d" % data['total_ice_succeeded_relayed'])
+      icestats.item("Failed", "% 3d" % data['total_ice_failed'])
       icestats.refresh()
 
-      totalstats.addstr(1, 1, "Conferences     : % 3d" % data['total_conferences_created'])
-      totalstats.addstr(2, 1, "Failed          : % 3d" % data['total_failed_conferences'])
-      totalstats.addstr(3, 1, "Partially failed: % 3d" % data['total_partially_failed_conferences'])
-      totalstats.addstr(4, 1, "Completed       : % 3d" % data['total_conferences_completed'])
+      totalstats.item("Conferences", "% 3d" % data['total_conferences_created'])
+      totalstats.item("Partially failed", "% 3d" % data['total_partially_failed_conferences'])
+      totalstats.item("Failed", "% 3d" % data['total_failed_conferences'])
+      totalstats.item("Completed", "% 3d" % data['total_conferences_completed'])
       tcf=int(data['total_conference_seconds'])
       days=tcf // 86400
       tcf-=days * 86400
@@ -105,15 +166,23 @@ def main(screen):
       tcf-=hrs * 3600
       min=tcf // 60
       sec=tcf - min * 60
-      totalstats.addstr(5, 1, "Time            : % 2dd %02d:%02d:%02d" % (days, hrs, min, sec))
-      totalstats.addstr(6, 1, "Speaker changes : %s" % data['total_dominant_speaker_changes'])
+      totalstats.item("Time", "% 2dd %02d:%02d:%02d" % (days, hrs, min, sec))
+      totalstats.item("Speaker changes", "%s" % data['total_dominant_speaker_changes'])
       totalstats.refresh()
-      totalstats.timeout(5000)
-      key = totalstats.getch()
+
+      count = 1
+      confs = data['conferences']
+      if confs == 0:
+         confs = 1
+      for size in data['conference_sizes']:
+         confsize.item(str(count), "%10s %3.1f%%" % (int(size/confs) * "=", (size/confs*10)))
+         count += 1
+      confsize.refresh()
+
+      key = screen.getch()
       if key == ord("q"):
          stop = 1
       elif key == curses.KEY_RESIZE: # window resized
          screen.erase()
-      #time.sleep(5)
 
 curses.wrapper(main)
