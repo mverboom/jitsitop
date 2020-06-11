@@ -92,12 +92,13 @@ def main(screen):
 
    title = titlebar(screen)
 
-   confstats = window(screen, "Current conferences", 0, 2)
-   netstats = window(screen, "Network", 0, 13)
-   icestats = window(screen, "ICE", 30, 2)
-   totalstats = window(screen, "Totals", 0, 20)
+   confstats = window(screen, "Conferences", 0, 2)
+   clients = window(screen, "Clients", 30, 2)
+   netstats = window(screen, "Network", 0, 11)
+   icestats = window(screen, "ICE", 30, 13)
+   totalstats = window(screen, "Totals", 0, 18)
    confsize = window(screen, "Conference sizes", 50, 2)
-   serverinfo = window(screen, "Server", 30,8)
+   serverinfo = window(screen, "Server", 30, 9)
 
    localtz = tzlocal.get_localzone()
    hostname = socket.getfqdn()
@@ -139,10 +140,8 @@ def main(screen):
       confstats.item("Inactive", "% 3d" % data['inactive_conferences'])
       confstats.item("Largests", "% 3d" % data['largest_conference'])
       confstats.item("Peer 2 peer", "% 3d" % data['p2p_conferences'])
-      confstats.item("Participants","% 3d" % data['participants'])
-      confstats.item("Videostreams", "% 3d" % data['endpoints_sending_video'])
-      confstats.item("Audiostreams", "% 3d" % data['endpoints_sending_audio'])
-      confstats.item("Inactive clients", "% 3d" % data['inactive_endpoints'])
+      confstats.item("Video streams", "% 3d" % data['videostreams'])
+      confstats.item("Video channels", "% 3d" % data['videochannels'])
       confstats.refresh()
    
       netstats.item("Download", "% 6.2fMbps" % (data['bit_rate_download']/1024))
@@ -161,6 +160,7 @@ def main(screen):
       totalstats.item("Partially failed", "% 3d" % data['total_partially_failed_conferences'])
       totalstats.item("Failed", "% 3d" % data['total_failed_conferences'])
       totalstats.item("Completed", "% 3d" % data['total_conferences_completed'])
+      totalstats.item("Clients", "% 3d" % data['total_participants'])
       tcf=int(data['total_conference_seconds'])
       days=tcf // 86400
       tcf-=days * 86400
@@ -185,6 +185,13 @@ def main(screen):
       serverinfo.item("CPU", "% 5.1f%%" % psutil.cpu_percent())
       serverinfo.item("Threads", str(data['threads']))
       serverinfo.refresh()
+
+      clients.item("Total","% 3d" % data['participants'])
+      clients.item("Inactive", str(data['inactive_endpoints']))
+      clients.item("Receive only", str(data['receive_only_endpoints']))
+      clients.item("Sending audio", str(data['endpoints_sending_audio']))
+      clients.item("Sending video", str(data['endpoints_sending_video']))
+      clients.refresh()
 
       key = screen.getch()
       if key == ord("q"):
