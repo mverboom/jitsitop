@@ -171,8 +171,9 @@ def display(screen, args):
    icestats = window(screen, "ICE", 66, 6)
    totalstats = window(screen, "Totals", 0, 10)
    confsize = window(screen, "Conference sizes", 0, 19)
-   rooms = menu(screen, "Rooms", 32, 11)
-   users = menu(screen, "Users", 61, 11)
+   if args.domain != '':
+     rooms = menu(screen, "Rooms", 32, 11)
+     users = menu(screen, "Users", 61, 11)
 
    localtz = tzlocal.get_localzone()
    hostname = socket.getfqdn()
@@ -210,20 +211,20 @@ def display(screen, args):
                confsize.item("% 2s" % str(count), "%10s %3.0f%% % 2d" % (int(size/confs*10)*"=", (size/confs*100), size))
          count += 1
 
+      if args.domain != '':
+         if len(rlist) > 0:
+            count=0
+            for r in rlist:
+               room = r[0][0]
+               rooms.item(str(count), "(%s) %s" % (room['NBparticipant'], room['roomname']))
+               count+=1
 
-      if len(rlist) > 0:
-         count=0
-         for r in rlist:
-            room = r[0][0]
-            rooms.item(str(count), "(%s) %s" % (room['NBparticipant'], room['roomname']))
-            count+=1
-
-      room = rooms.selection()
-      if room != 0:
-         count=0
-         for u in rlist[room-1][0][0]['participant']:
-            users.item(str(count), "%s (%s)" % (u['display_name'], u['role']))
-            count+=1
+         room = rooms.selection()
+         if room != 0:
+            count=0
+            for u in rlist[room-1][0][0]['participant']:
+               users.item(str(count), "%s (%s)" % (u['display_name'], u['role']))
+               count+=1
 
       confstats.item("Active", "% 3d" % data['conferences'])
       confstats.item("Inactive", "% 3d" % data['inactive_conferences'])
@@ -271,18 +272,19 @@ def display(screen, args):
       clients.refresh()
       icestats.refresh()
       confsize.refresh()
-      rooms.refresh()
       confstats.refresh()
       netstats.refresh()
       totalstats.refresh()
       serverinfo.refresh()
-      users.refresh()
+      if args.domain != '':
+         rooms.refresh()
+         users.refresh()
       key = screen.getch()
       if key == ord("q"):
          stop = 1
       elif key == curses.KEY_RESIZE: # window resized
          screen.erase()
-      elif key != "":
+      elif key != "" and args.domain != '':
          rooms.key(key)
 
 def main():
