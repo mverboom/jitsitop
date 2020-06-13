@@ -4,8 +4,7 @@
 #
 
 import requests, time, datetime, tzlocal, pprint, curses, socket, curses.panel
-import psutil
-import json
+import psutil, argparse
 
 class titlebar:
    def __init__(self, screen):
@@ -153,17 +152,12 @@ def mucstatuskey(json):
     except KeyError:
         return 0
 
-def main(screen):
-   resp = requests.get('http://127.0.0.1:8080/about/version')
-   version = resp.json()
-   
+def display(screen, args):
    # Initialise curses
    curses.noecho() # no key echo
    curses.cbreak() # unbuffered keys
    curses.curs_set(0) # hide cursor
    screen.timeout(5000)
-   #screen.nodelay(1)
-   #screen.immedok(True)
 
    # Initialise windows
    maxy, maxx = screen.getmaxyx()
@@ -177,7 +171,7 @@ def main(screen):
    icestats = window(screen, "ICE", 66, 6)
    totalstats = window(screen, "Totals", 0, 10)
    confsize = window(screen, "Conference sizes", 0, 19)
-   rooms = menu(screen, "Rooms", 31, 11)
+   rooms = menu(screen, "Rooms", 32, 11)
    users = menu(screen, "Users", 61, 11)
 
    localtz = tzlocal.get_localzone()
@@ -191,12 +185,13 @@ def main(screen):
          raise ApiError('GET /colibri/stats/ {}'.format(resp.status_code))
       data = resp.json()
 
-      resp = requests.get('http://localhost:5280/status?domain=<servername>')
-      if resp.status_code != 200:
-         # This means something went wrong.
-         raise ApiError('GET /status {}'.format(resp.status_code))
-      rlist = resp.json()
-      rlist.sort(key=mucstatuskey)
+      if args.domain != '':
+         resp = requests.get('http://localhost:5280/status?domain=%s' % args.domain)
+         if resp.status_code != 200:
+            # This means something went wrong.
+            raise ApiError('GET /status {}'.format(resp.status_code))
+         rlist = resp.json()
+         rlist.sort(key=mucstatuskey)
    
       updatestamp = datetime.datetime.strptime(data['current_timestamp'] + " +0000", '%Y-%m-%d %H:%M:%S.%f %z').astimezone(localtz)
    
@@ -222,14 +217,6 @@ def main(screen):
             room = r[0][0]
             rooms.item(str(count), "(%s) %s" % (room['NBparticipant'], room['roomname']))
             count+=1
-            #print(r['roomname'])
-            #print(r['NBparticipant'])
-            #for p in r['participant']:
-            #   print(p['role'])
-            #   print(p['display_name'])
-            #   print(p['videomuted'])
-            #   print(p['audiomuted'])
-            #   print(p['jid'])
 
       room = rooms.selection()
       if room != 0:
@@ -297,6 +284,12 @@ def main(screen):
          screen.erase()
       elif key != "":
          rooms.key(key)
-      #time.sleep(1)
 
-curses.wrapper(main)
+def main():
+   parser = argparse.ArgumentParser(description='Jitsitop')
+   parser.add_argument('-d', '--domain', dest='domain', default="",
+                   help='prosody domain for mod_muc_status')
+   args = parser.parse_args()
+   curses.wrapper(display, args)
+
+main()
