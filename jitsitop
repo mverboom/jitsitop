@@ -5,6 +5,7 @@
 
 import requests, time, datetime, tzlocal, pprint, curses, socket, curses.panel
 import psutil
+import json
 
 class titlebar:
    def __init__(self, screen):
@@ -12,7 +13,8 @@ class titlebar:
 
       maxy, maxx = self.screen.getmaxyx()
       self.window = curses.newwin(1, maxx + 1, 0, 0)
-      self.panel = curses.panel.new_panel(self.window)
+      #self.window.immedok(True)
+      #self.panel = curses.panel.new_panel(self.window)
 
    def left(self, text):
       self.window.addstr(0, 0, text)
@@ -30,24 +32,30 @@ class window:
       self.title = title
       self.items = {}
 
-      width = 0
-      height = 0
+      self.width = 0
+      self.height = 0
       if self.title != "":
-         width = len(self.title) + 5
-         height = 2
-      self.window = curses.newwin(height, width, y, x)
+         self.width = len(self.title) + 5
+         self.height = 2
+      self.window = curses.newwin(self.height, self.width, y, x)
       self.panel = curses.panel.new_panel(self.window)
       if self.title != "":
          self.window.border()
          self.window.addstr(0, 3, self.title)
 
-   def item(self, item, value):
-      maxy, maxx = self.window.getmaxyx()
+   def _showitems(self):
+      y = 1
+      for key,val in self.items.items():
+         self.window.addstr(y, 1, key)
+         self.window.addstr(y, len(key)+1, (self.width - len(key) - len (val) - 2) * " ")
+         self.window.addstr(y, self.width - len(val) - 1, val)
+         y += 1
 
+   def item(self, item, value):
       self.items[item] = value
-      y = maxy
-      if (len(self.items) + 2) > maxy:
-         y = len(self.items) + 2
+
+      winy, winx = self.window.getmaxyx()
+      reqy = len(self.items) + 2
 
       kmax=0
       vmax=0
@@ -56,26 +64,94 @@ class window:
             kmax = len(key)
          if len(val) > vmax:
             vmax = len(val)
-      x = kmax + vmax + 3
-      if x < maxx:
-         x = maxx
+      reqx = kmax + vmax + 3
+      if reqx < len(self.title) + 5:
+         reqx = len(self.title) + 5
 
-      if (x > maxx) or (y > maxy):
-         self.window.resize(y, x)
-         self.window.erase()
+      if (reqx > winx) or (reqy > winy):
+         self.window.resize(reqy, reqx)
          self.window.border()
          self.window.addstr(0, 3, self.title)
-         maxx = x
-         maxy = y
-
-      y = 1
-      for key,val in self.items.items():
-         self.window.addstr(y, 1, key)
-         self.window.addstr(y, maxx - len(val) - 1, val)
-         y += 1
+      self.width = reqx
+      self.height = reqy
+      self._showitems()
 
    def refresh(self):
+      winy, winx = self.window.getmaxyx()
+
+      #self.window.addstr(0,0,"win: %d, self: %d" % (winy, self.height))
+      resize=0
+      if winy > self.height:
+         self.window.addch(self.height, 0, " ")
+         self.window.clrtobot()
+         resize=1
+      if winx > self.width:
+         for y in range(0,winy):
+            self.window.addch(y, self.width, " ")
+            self.window.clrtoeol()
+         resize=1
+      if resize==1:
+         self.window.refresh()
+         self.window.resize(self.height, self.width)
+         self.window.border()
+         self.window.addstr(0, 3, self.title)
       self.window.refresh()
+
+      # initialise for next update
+      self.items.clear()
+      self.width = 0
+      self.height = 0
+      if self.title != "":
+         self.width = len(self.title) + 5
+         self.height = 2
+      self.window.erase()
+      if self.title != "":
+         self.window.border()
+         self.window.addstr(0, 3, self.title)
+
+   def clear(self):
+      print()
+      #self.window.refresh()
+      #self.items.clear()
+      #self.window.addstr(0, 3, self.title)
+
+class menu(window):
+   def __init__(self, screen, title, x, y):
+      self.select = 1
+      super(menu, self).__init__(screen, title, x, y)
+
+   def _showitems(self):
+      y = 1
+      for key,val in self.items.items():
+         if y == self.select:
+            mode = curses.A_REVERSE
+         else:
+            mode = curses.A_NORMAL
+         self.window.addstr(y, 1, val + (self.width - 2 - len(val)) * " ", mode)
+         y += 1
+
+   def selection(self):
+      if len(self.items) < self.select:
+         self.select = len(self.items)
+      return(self.select)
+
+   def refresh(self):
+      self.menuitems = self.items.copy()
+      super(menu, self).refresh()
+
+   def key(self, key):
+      if key == curses.KEY_DOWN:
+         if self.select < len(self.menuitems):
+            self.select+=1
+      elif key == curses.KEY_UP:
+         if self.select != 1:
+            self.select-=1
+
+def mucstatuskey(json):
+    try:
+        return json[0][0]['roomname']
+    except KeyError:
+        return 0
 
 def main(screen):
    resp = requests.get('http://127.0.0.1:8080/about/version')
@@ -86,6 +162,8 @@ def main(screen):
    curses.cbreak() # unbuffered keys
    curses.curs_set(0) # hide cursor
    screen.timeout(5000)
+   #screen.nodelay(1)
+   #screen.immedok(True)
 
    # Initialise windows
    maxy, maxx = screen.getmaxyx()
@@ -93,48 +171,72 @@ def main(screen):
    title = titlebar(screen)
 
    confstats = window(screen, "Conferences", 0, 2)
-   clients = window(screen, "Clients", 30, 2)
-   netstats = window(screen, "Network", 0, 11)
-   icestats = window(screen, "ICE", 30, 13)
-   totalstats = window(screen, "Totals", 0, 18)
-   confsize = window(screen, "Conference sizes", 50, 2)
-   serverinfo = window(screen, "Server", 30, 9)
+   clients = window(screen, "Clients", 20, 2)
+   netstats = window(screen, "Network", 40, 2)
+   serverinfo = window(screen, "Server", 66, 2)
+   icestats = window(screen, "ICE", 66, 6)
+   totalstats = window(screen, "Totals", 0, 10)
+   confsize = window(screen, "Conference sizes", 0, 19)
+   rooms = menu(screen, "Rooms", 31, 11)
+   users = menu(screen, "Users", 61, 11)
 
    localtz = tzlocal.get_localzone()
    hostname = socket.getfqdn()
 
    stop=0
-   
-   screen.refresh()
    while not stop:
       resp = requests.get('http://127.0.0.1:8080/colibri/stats')
       if resp.status_code != 200:
          # This means something went wrong.
          raise ApiError('GET /colibri/stats/ {}'.format(resp.status_code))
       data = resp.json()
-      resp = requests.get('http://localhost:5280/status?domain=meeting.kramsolutions.nl')
-      #if resp.status_code != 200:
-      #   # This means something went wrong.
-      #   raise ApiError('GET /status {}'.format(resp.status_code))
-      #rooms = resp.json()
+
+      resp = requests.get('http://localhost:5280/status?domain=<servername>')
+      if resp.status_code != 200:
+         # This means something went wrong.
+         raise ApiError('GET /status {}'.format(resp.status_code))
+      rlist = resp.json()
+      rlist.sort(key=mucstatuskey)
    
       updatestamp = datetime.datetime.strptime(data['current_timestamp'] + " +0000", '%Y-%m-%d %H:%M:%S.%f %z').astimezone(localtz)
    
       title.left("%s (%s)" % (hostname, data['version']))
       title.right("Update: %s" % "{:%Y/%m/%d %H:%M:%S}".format(updatestamp))
-      title.refresh()
 
-      #if len(rooms) > 0:
-      #   for r in rooms[0][0]:
-      #      print(r['roomjid'])
-      #      print(r['roomname'])
-      #      print(r['NBparticipant'])
-      #      for p in r['participant']:
-      #         print(p['role'])
-      #         print(p['display_name'])
-      #         print(p['videomuted'])
-      #         print(p['audiomuted'])
-      #         print(p['jid'])
+      count = 0
+      confs = data['conferences']
+      if confs == 0:
+         confs = 1
+      for size in data['conference_sizes']:
+         if count > 1 and size > 0:
+            if count == len(data['conference_sizes'])-1:
+               confsize.item("% 2s+" % str(count), "%10s %3.0f%% % 2d" % (int(size/confs*10)*"=", (size/confs*100), size))
+            else:
+               confsize.item("% 2s" % str(count), "%10s %3.0f%% % 2d" % (int(size/confs*10)*"=", (size/confs*100), size))
+         count += 1
+
+
+      if len(rlist) > 0:
+         count=0
+         for r in rlist:
+            room = r[0][0]
+            rooms.item(str(count), "(%s) %s" % (room['NBparticipant'], room['roomname']))
+            count+=1
+            #print(r['roomname'])
+            #print(r['NBparticipant'])
+            #for p in r['participant']:
+            #   print(p['role'])
+            #   print(p['display_name'])
+            #   print(p['videomuted'])
+            #   print(p['audiomuted'])
+            #   print(p['jid'])
+
+      room = rooms.selection()
+      if room != 0:
+         count=0
+         for u in rlist[room-1][0][0]['participant']:
+            users.item(str(count), "%s (%s)" % (u['display_name'], u['role']))
+            count+=1
 
       confstats.item("Active", "% 3d" % data['conferences'])
       confstats.item("Inactive", "% 3d" % data['inactive_conferences'])
@@ -142,19 +244,16 @@ def main(screen):
       confstats.item("Peer 2 peer", "% 3d" % data['p2p_conferences'])
       confstats.item("Video streams", "% 3d" % data['videostreams'])
       confstats.item("Video channels", "% 3d" % data['videochannels'])
-      confstats.refresh()
    
       netstats.item("Download", "% 6.2fMbps" % (data['bit_rate_download']/1024))
       netstats.item("Download loss", "% 6.2f%%" % (data['loss_rate_download']*100))
       netstats.item("Upload", "% 6.2fMbps" % (data['bit_rate_upload']/1024))
       netstats.item("Upload loss", "% 6.2f%%" % (data['loss_rate_upload']*100))
       netstats.item("Avg RTT", "% 6dms" % data['rtt_aggregate'])
-      netstats.refresh()
 
       icestats.item("Succeed", "% 3d" % data['total_ice_succeeded'])
       icestats.item("Relayed", "% 3d" % data['total_ice_succeeded_relayed'])
       icestats.item("Failed", "% 3d" % data['total_ice_failed'])
-      icestats.refresh()
 
       totalstats.item("Conferences", "% 3d" % data['total_conferences_created'])
       totalstats.item("Partially failed", "% 3d" % data['total_partially_failed_conferences'])
@@ -170,33 +269,34 @@ def main(screen):
       sec=tcf - min * 60
       totalstats.item("Time", "% 2dd %02d:%02d:%02d" % (days, hrs, min, sec))
       totalstats.item("Speaker changes", "%s" % data['total_dominant_speaker_changes'])
-      totalstats.refresh()
-
-      count = 0
-      confs = data['conferences']
-      if confs == 0:
-         confs = 1
-      for size in data['conference_sizes']:
-         if count > 1:
-            confsize.item("% 2s" % str(count), "%10s %3.0f%% % 2d" % (int(size/confs*10)*"=", (size/confs*100), size))
-         count += 1
-      confsize.refresh()
 
       serverinfo.item("CPU", "% 5.1f%%" % psutil.cpu_percent())
       serverinfo.item("Threads", str(data['threads']))
-      serverinfo.refresh()
 
       clients.item("Total","% 3d" % data['participants'])
       clients.item("Inactive", str(data['inactive_endpoints']))
       clients.item("Receive only", str(data['receive_only_endpoints']))
       clients.item("Sending audio", str(data['endpoints_sending_audio']))
       clients.item("Sending video", str(data['endpoints_sending_video']))
-      clients.refresh()
 
+      screen.refresh()
+      title.refresh()
+      clients.refresh()
+      icestats.refresh()
+      confsize.refresh()
+      rooms.refresh()
+      confstats.refresh()
+      netstats.refresh()
+      totalstats.refresh()
+      serverinfo.refresh()
+      users.refresh()
       key = screen.getch()
       if key == ord("q"):
          stop = 1
       elif key == curses.KEY_RESIZE: # window resized
          screen.erase()
+      elif key != "":
+         rooms.key(key)
+      #time.sleep(1)
 
 curses.wrapper(main)
