@@ -86,7 +86,7 @@ class window:
          resize=1
       if winx > self.width:
          for y in range(0,winy):
-            self.window.addch(y, self.width, " ")
+            self.window.addch(y, self.width - 1, " ")
             self.window.clrtoeol()
          resize=1
       if resize==1:
