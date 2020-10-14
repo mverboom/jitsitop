@@ -168,12 +168,12 @@ def display(screen, args):
    clients = window(screen, "Clients", 20, 2)
    netstats = window(screen, "Network", 40, 2)
    serverinfo = window(screen, "Server", 66, 2)
-   icestats = window(screen, "ICE", 66, 6)
+   icestats = window(screen, "ICE", 66, 7)
    totalstats = window(screen, "Totals", 0, 10)
    confsize = window(screen, "Conference sizes", 0, 19)
    if args.domain != '':
      rooms = menu(screen, "Rooms", 32, 11)
-     users = menu(screen, "Users", 61, 11)
+     users = menu(screen, "Users", 61, 12)
 
    localtz = tzlocal.get_localzone()
    hostname = socket.getfqdn()
@@ -230,7 +230,6 @@ def display(screen, args):
       confstats.item("Inactive", "% 3d" % data['inactive_conferences'])
       confstats.item("Largests", "% 3d" % data['largest_conference'])
       confstats.item("Peer 2 peer", "% 3d" % data['p2p_conferences'])
-      confstats.item("Video streams", "% 3d" % data['videostreams'])
       confstats.item("Video channels", "% 3d" % data['videochannels'])
    
       netstats.item("Download", "% 6.2fMbps" % (data['bit_rate_download']/1024))
@@ -260,6 +259,7 @@ def display(screen, args):
 
       serverinfo.item("CPU", "% 5.1f%%" % psutil.cpu_percent())
       serverinfo.item("Threads", str(data['threads']))
+      serverinfo.item("Stress", str(data['stress_level']))
 
       clients.item("Total","% 3d" % data['participants'])
       clients.item("Inactive", str(data['inactive_endpoints']))
