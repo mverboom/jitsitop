@@ -233,9 +233,9 @@ def display(screen, args):
       confstats.item("Video channels", "% 3d" % data['videochannels'])
    
       netstats.item("Download", "% 6.2fMbps" % (data['bit_rate_download']/1024))
-      netstats.item("Download loss", "% 6.2f%%" % (data['loss_rate_download']*100))
+      netstats.item("Incoming loss", "% 6.2f%%" % (data['incoming_loss']*100))
       netstats.item("Upload", "% 6.2fMbps" % (data['bit_rate_upload']/1024))
-      netstats.item("Upload loss", "% 6.2f%%" % (data['loss_rate_upload']*100))
+      netstats.item("Outgoing loss", "% 6.2f%%" % (data['outgoing_loss']*100))
       netstats.item("Avg RTT", "% 6dms" % data['rtt_aggregate'])
 
       icestats.item("Succeed", "% 3d" % data['total_ice_succeeded'])
@@ -294,4 +294,5 @@ def main():
    args = parser.parse_args()
    curses.wrapper(display, args)
 
-main()
+if __name__ == "__main__":
+    main()
