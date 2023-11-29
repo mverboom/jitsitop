@@ -20,10 +20,24 @@ do this, do the following:
 
 ```
 cd /etc/jitsi/videobridge
+```
+
+```
+vi jvb.conf
+Make sure the following section is set within videobridge:
+
+    apis {
+        rest {
+            enabled = true
+        }
+    }
+```
+
+```
 vi config
-Make sure the following options are enabled in JVB_OPTS:
-JVB_OPTS="--apis=,rest,"
 Make sure the following options are enabled on JAVA_SYS_PROPS:
+
+-Dorg.jitsi.videobridge.rest.private.jetty.host=0.0.0.0 -Dorg.jitsi.videobridge.rest.private.jetty.port=8080 -Dorg.jitsi.videobridge.ENABLE_STATISTICS=true -Dorg.jitsi.videobridge.STATISTICS_TRANSPORT=muc,pubsub,callstats.io,colibri"
 -Dorg.jitsi.videobridge.rest.private.jetty.host=localhost -Dorg.jitsi
 .videobridge.rest.private.jetty.port=8080 -Dorg.jitsi.videobridge.ENABLE_STATISTICS=t
 rue -Dorg.jitsi.videobridge.STATISTICS_INTERVAL=1000
@@ -62,15 +76,17 @@ https://github.com/mverboom/build-recipes/tree/master/luajwtjitsi
 To do this on a jitsi server, the following steps should work:
 
 ```
-apt install git lua5.2 luarocks cmake libssl-dev liblua5.2-dev
+apt install git lua5.4 luarocks cmake libssl-dev liblua5.4-dev
 cd /tmp
 git clone https://github.com/evanlabs/luacrypto
 cd luacrypto
 sed -i '/Lua51 REQUIRED/d' dist.cmake
-sed -i -r 's#(lua.h|lauxlib.h)#/usr/include/lua5.2/\1#' src/lcrypto.c
-luarocks make
-mv /usr/local/lib/lua/5.2/lua/crypto.so /usr/local/lib/lua/5.2/crypto.so
-rmdir /usr/local/lib/lua/5.2/lua
+sed -i -r 's#(lua.h|lauxlib.h)#/usr/include/lua5.4/\1#' src/lcrypto.c
+sed -i 's/SHLIB_VERSION_NUMBER/SSLEAY_VERSION_NUMBER/' src/lcrypto.c
+luarocks --lua-version 5.4 make
+mv /usr/local/lib/lua/5.4/lua/crypto.so /usr/local/lib/lua/5.4/crypto.so
+rmdir /usr/local/lib/lua/5.4/lua
+luarocks install inspect
 luarocks install net-url
 luarocks install basexx
 luarocks install lua-cjson 2.1.0-1
